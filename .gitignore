@@ -19,6 +19,16 @@ ENV/
 # 数据库文件
 data/*.db
 
+# 运行时行情、扫描结果和本地报告
+/data/
+/output/
+
+# 仪表盘运行时生成页面；保留 site/assets 源资源
+/site/index.html
+/site/status.json
+/site/stocks/
+/site/visits/
+
 # 环境变量
 .env
 
@@ -30,9 +40,15 @@ build/
 # 测试与工具缓存
 .pytest_cache/
 .ruff_cache/
+/.playwright-cli/
 
 # 日志
 *.log
 
 # Hypothesis 测试缓存
 .hypothesis/
+
+# 本地浏览器检查产生的临时文件
+/innerWidth*
+/refresh_after_backfill.ps1
+/repair_nav.py

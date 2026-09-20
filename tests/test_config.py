@@ -14,7 +14,8 @@ def test_env_overrides_default(db_path: str, monkeypatch) -> None:
     """属性 1：任意合法 db_path 通过环境变量设置后，Settings 实例应反映该值。"""
     import sequoia_x.core.config as cfg_module
     monkeypatch.setenv("DB_PATH", db_path)
-    monkeypatch.setenv("FEISHU_WEBHOOK_URL", "https://example.com/hook")
+    monkeypatch.setenv("QQ_BOT_API_URL", "http://127.0.0.1:3000")
+    monkeypatch.setenv("QQ_TARGET_ID", "123456789")
     monkeypatch.setattr(cfg_module, "_settings", None)
     from sequoia_x.core.config import Settings
     s = Settings()
@@ -23,15 +24,20 @@ def test_env_overrides_default(db_path: str, monkeypatch) -> None:
 
 # Feature: sequoia-x-v2, Property 2: 缺失必填字段触发 ValidationError
 def test_missing_required_field_raises() -> None:
-    """属性 2：缺少 feishu_webhook_url 时，实例化 Settings 应抛出 ValidationError。"""
+    """属性 2：缺少 QQ 机器人地址和目标时，实例化 Settings 应抛出 ValidationError。"""
     import os
     from sequoia_x.core.config import Settings
     # 确保环境变量中没有该字段
-    env_backup = os.environ.pop("FEISHU_WEBHOOK_URL", None)
+    api_backup = os.environ.pop("QQ_BOT_API_URL", None)
+    target_backup = os.environ.pop("QQ_TARGET_ID", None)
     try:
         with pytest.raises(ValidationError) as exc_info:
             Settings(_env_file=None)
-        assert "feishu_webhook_url" in str(exc_info.value).lower()
+        error = str(exc_info.value).lower()
+        assert "qq_bot_api_url" in error
+        assert "qq_target_id" in error
     finally:
-        if env_backup is not None:
-            os.environ["FEISHU_WEBHOOK_URL"] = env_backup
+        if api_backup is not None:
+            os.environ["QQ_BOT_API_URL"] = api_backup
+        if target_backup is not None:
+            os.environ["QQ_TARGET_ID"] = target_backup

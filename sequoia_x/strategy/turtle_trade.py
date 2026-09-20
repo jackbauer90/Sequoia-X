@@ -15,12 +15,7 @@ class TurtleTradeStrategy(BaseStrategy):
     1. 突破新高：今日 close > 前20个交易日 high 的最大值
     2. 流动性：今日 turnover > 100,000,000
     3. 防诱多过滤：今日必须是实体阳线（今日 close > 今日 open），且必须真涨（今日 close > 昨日 close）
-
-    Attributes:
-        webhook_key: 路由到 'turtle' 专属飞书机器人。
     """
-
-    webhook_key: str = "turtle"
     _MIN_BARS: int = 21  # 至少需要 21 根 K 线（20日窗口 + 当日）
 
     def _get_market_caps(self, symbols: list[str]) -> dict[str, float]:
@@ -29,6 +24,12 @@ class TurtleTradeStrategy(BaseStrategy):
         流通股本 = 成交量 / (换手率% / 100)
         流通市值 = 流通股本 × 不复权收盘价
         """
+        import sqlite3
+        from contextlib import closing
+        with closing(sqlite3.connect(self.engine.db_path)) as conn:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='tushare_market_cap'").fetchone():
+                rows = conn.execute('SELECT symbol,value FROM tushare_market_cap WHERE date=(SELECT MAX(date) FROM stock_daily)').fetchall()
+                return {symbol: value for symbol, value in rows if symbol in symbols}
         from datetime import date
 
         import baostock as bs

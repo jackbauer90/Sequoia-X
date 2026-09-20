@@ -14,22 +14,19 @@ class PrivatePlacementStrategy(BaseStrategy):
     """定增公告监控策略。
 
     数据源：akshare stock_qbzf_em()（东方财富-全部增发）
-    逻辑：筛选最近 7 天内发行日期的定向增发公告，推送至飞书。
-
-    Attributes:
-        webhook_key: 路由到 'private_placement' 飞书机器人。
+    逻辑：筛选最近 7 天内发行日期的定向增发公告，推送至 QQ。
     """
-
-    webhook_key: str = "private_placement"
     _LOOKBACK_DAYS: int = 7  # 回看天数，覆盖一周内的新公告
 
     def run(self) -> list[str]:
         """拉取定增公告，返回近期有定向增发的股票代码列表。"""
+        self.last_error = None
         try:
             import akshare as ak
 
             df = ak.stock_qbzf_em()
         except Exception as exc:
+            self.last_error = "定增数据接口访问失败，本次无法判断是否命中。"
             logger.error(f"PrivatePlacementStrategy 获取定增数据失败：{exc}")
             return []
 
@@ -49,7 +46,7 @@ class PrivatePlacementStrategy(BaseStrategy):
 
         df["发行日期"] = pd.to_datetime(df["发行日期"], errors="coerce")
         df = df.dropna(subset=["发行日期"])
-        df = df[df["发行日期"].dt.date >= cutoff]
+        df = df[(df["发行日期"].dt.date >= cutoff) & (df["发行日期"].dt.date <= today)]
 
         if df.empty:
             logger.info("PrivatePlacementStrategy 近期无新定增公告")

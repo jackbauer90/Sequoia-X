@@ -1,11 +1,13 @@
 """数据引擎属性测试。"""
 
 import sqlite3
+from contextlib import closing
 import tempfile
 from datetime import date
 from pathlib import Path
 
 import pandas as pd
+from unittest.mock import MagicMock
 from hypothesis import given, settings as h_settings
 from hypothesis import strategies as st
 
@@ -18,7 +20,8 @@ def make_engine_in(tmp_dir: str) -> tuple[DataEngine, Settings]:
     settings = Settings(
         db_path=str(Path(tmp_dir) / "test.db"),
         start_date="2024-01-01",
-        feishu_webhook_url="https://example.com/hook",
+        qq_bot_api_url="http://127.0.0.1:3000",
+        qq_target_id=123456789,
     )
     engine = DataEngine(settings)
     return engine, settings
@@ -40,7 +43,7 @@ def test_unique_symbol_date_constraint(symbol: str, trade_date: date) -> None:
             "volume": 1000.0, "turnover": 10500.0,
         }
         df = pd.DataFrame([row])
-        with sqlite3.connect(engine.db_path) as conn:
+        with closing(sqlite3.connect(engine.db_path)) as conn, conn:
             df.to_sql("stock_daily", conn, if_exists="append", index=False, method="multi")
             try:
                 df.to_sql("stock_daily", conn, if_exists="append", index=False, method="multi")
@@ -51,3 +54,16 @@ def test_unique_symbol_date_constraint(symbol: str, trade_date: date) -> None:
                 (symbol, str(trade_date)),
             ).fetchone()[0]
         assert count == 1
+
+
+def test_incremental_retry_preserves_other_symbols(tmp_path, monkeypatch):
+    engine, _ = make_engine_in(str(tmp_path))
+    with sqlite3.connect(engine.db_path) as conn:
+        conn.executemany('INSERT INTO stock_daily(symbol,date,close,volume) VALUES(?,?,?,?)',
+                         [('000001', '2024-01-02', 10, 100), ('000002', '2024-01-02', 20, 200)])
+    pool = MagicMock()
+    pool.__enter__.return_value.map.return_value = [[['000001', '2024-01-02', 11, 12, 10, 11, 120, 1320]]]
+    monkeypatch.setattr('multiprocessing.Pool', lambda *args: pool)
+    engine.sync_today_bulk()
+    assert engine.get_ohlcv('000002').iloc[0]['close'] == 20
+    assert engine.get_ohlcv('000001').iloc[0]['close'] == 11

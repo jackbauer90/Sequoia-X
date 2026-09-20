@@ -1,0 +1,23 @@
+[Unit]
+Description=Sequoia three-strategy daily K-line update (no notifications)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/sequoia-x
+Environment=TZ=Asia/Shanghai
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/etc/w-bottom-dashboard.env
+ExecStart=/opt/sequoia-x/.venv/bin/python /opt/sequoia-x/daily_update.py
+TimeoutStartSec=90min
+Nice=10
+CPUQuota=150%
+MemoryMax=1500M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sequoia-x

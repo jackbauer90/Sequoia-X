@@ -1,6 +1,7 @@
 """数据引擎模块：负责 SQLite 行情数据存储与 baostock 增量同步。"""
 
 import sqlite3
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
@@ -63,14 +64,14 @@ class DataEngine:
 
     def _init_db(self) -> None:
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
             conn.execute(_CREATE_TABLE_SQL)
             conn.execute(_CREATE_INDEX_SQL)
             conn.commit()
         logger.info(f"数据库初始化完成：{self.db_path}")
 
     def _get_last_date(self, symbol: str) -> str | None:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             row = conn.execute(
                 "SELECT MAX(date) FROM stock_daily WHERE symbol = ?",
                 (symbol,),
@@ -78,7 +79,7 @@ class DataEngine:
         return row[0] if row and row[0] else None
 
     def get_ohlcv(self, symbol: str) -> pd.DataFrame:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             df = pd.read_sql(
                 "SELECT * FROM stock_daily WHERE symbol = ? ORDER BY date",
                 conn,
@@ -94,15 +95,15 @@ class DataEngine:
 
     # ── 数据同步 ──
 
-    def sync_today_bulk(self) -> int:
+    def sync_today_bulk(self, target_date: str | None = None) -> int:
         """多进程并行通过 baostock 拉取增量数据（后复权），写入 SQLite。"""
         from datetime import date, timedelta
         from multiprocessing import Pool
 
-        today_str = date.today().strftime("%Y-%m-%d")
+        today_str = target_date or date.today().strftime("%Y-%m-%d")
 
         tasks = []
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute(
                 "SELECT symbol, MAX(date) FROM stock_daily GROUP BY symbol"
             ).fetchall()
@@ -146,10 +147,12 @@ class DataEngine:
         df = df[df["volume"] > 0]
 
         count = len(df)
-        with sqlite3.connect(self.db_path) as conn:
-            for d in df["date"].unique().tolist():
-                conn.execute("DELETE FROM stock_daily WHERE date = ?", (d,))
-            df.to_sql("stock_daily", conn, if_exists="append", index=False, method="multi", chunksize=500)
+        with closing(sqlite3.connect(self.db_path)) as conn, conn:
+            conn.executemany(
+                "INSERT INTO stock_daily(symbol,date,open,high,low,close,volume,turnover) VALUES(?,?,?,?,?,?,?,?) "
+                "ON CONFLICT(symbol,date) DO UPDATE SET open=excluded.open,high=excluded.high,low=excluded.low,close=excluded.close,volume=excluded.volume,turnover=excluded.turnover",
+                df.itertuples(index=False, name=None),
+            )
             conn.commit()
 
         logger.info(f"sync_today_bulk: 写入 {count} 条数据")
@@ -275,7 +278,7 @@ class DataEngine:
                 df = df[["symbol", "date", "open", "high", "low", "close", "volume", "turnover"]]
 
                 try:
-                    with sqlite3.connect(self.db_path) as conn:
+                    with closing(sqlite3.connect(self.db_path)) as conn, conn:
                         df.to_sql(
                             "stock_daily", conn, if_exists="append",
                             index=False, method="multi", chunksize=500,
@@ -326,7 +329,7 @@ class DataEngine:
             bs.logout()
 
     def get_local_symbols(self) -> list[str]:
-        with sqlite3.connect(self.db_path) as conn:
+        with closing(sqlite3.connect(self.db_path)) as conn:
             rows = conn.execute(
                 "SELECT DISTINCT symbol FROM stock_daily"
             ).fetchall()

@@ -1,0 +1,12 @@
+[Unit]
+Description=Publish Sequoia realtime close at 15:05 and complete with Tushare at 18:30 Shanghai
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 15:05:00 Asia/Shanghai
+OnCalendar=Mon..Fri *-*-* 18:30:00 Asia/Shanghai
+Persistent=true
+AccuracySec=1s
+Unit=sequoia-dashboard.service
+
+[Install]
+WantedBy=timers.target

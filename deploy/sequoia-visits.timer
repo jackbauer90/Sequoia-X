@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh private access records every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+Unit=sequoia-visits.service
+
+[Install]
+WantedBy=timers.target

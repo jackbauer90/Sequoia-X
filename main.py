@@ -1,7 +1,7 @@
 """Sequoia-X V2 主程序入口。
 
 两种运行模式：
-  python main.py               # 日常模式：8进程增量补数据 + 跑策略 + 飞书推送（2~3分钟）
+  python main.py               # 日常模式：8进程增量补数据 + 跑策略 + QQ 推送（2~3分钟）
   python main.py --backfill    # 回填模式：baostock 拉全市场历史K线（首次/补数据用，约12分钟）
 """
 
@@ -18,15 +18,11 @@ socket.setdefaulttimeout(10.0)
 from sequoia_x.core.config import get_settings
 from sequoia_x.core.logger import get_logger
 from sequoia_x.data.engine import DataEngine
-from sequoia_x.notify.feishu import FeishuNotifier
+from sequoia_x.notify.qq import QQNotifier
 from sequoia_x.strategy.base import BaseStrategy
 from sequoia_x.strategy.high_tight_flag import HighTightFlagStrategy
-from sequoia_x.strategy.limit_up_shakeout import LimitUpShakeoutStrategy
 from sequoia_x.strategy.ma_volume import MaVolumeStrategy
-from sequoia_x.strategy.turtle_trade import TurtleTradeStrategy
-from sequoia_x.strategy.uptrend_limit_down import UptrendLimitDownStrategy
 from sequoia_x.strategy.rps_breakout import RpsBreakoutStrategy
-from sequoia_x.strategy.private_placement import PrivatePlacementStrategy
 
 
 def main() -> None:
@@ -65,17 +61,13 @@ def main() -> None:
         # 4. 策略列表（新增策略在此追加即可）
         strategies: list[BaseStrategy] = [
             MaVolumeStrategy(engine=engine, settings=settings),
-            TurtleTradeStrategy(engine=engine, settings=settings),
             HighTightFlagStrategy(engine=engine, settings=settings),
-            LimitUpShakeoutStrategy(engine=engine, settings=settings),
-            UptrendLimitDownStrategy(engine=engine, settings=settings),
             RpsBreakoutStrategy(engine=engine, settings=settings),
-            PrivatePlacementStrategy(engine=engine, settings=settings),
         ]
 
-        notifier = FeishuNotifier(settings)
+        notifier = QQNotifier(settings)
 
-        # 5. 遍历策略，有结果则推送至对应机器人
+        # 5. 遍历策略，有结果则推送至 QQ
         for strategy in strategies:
             strategy_name = type(strategy).__name__
             logger.info(f"执行策略：{strategy_name}")
@@ -87,7 +79,6 @@ def main() -> None:
                 notifier.send(
                     symbols=selected,
                     strategy_name=strategy_name,
-                    webhook_key=strategy.webhook_key,
                 )
             else:
                 logger.info(f"{strategy_name} 无选股结果，跳过推送")

@@ -1,0 +1,17 @@
+[Unit]
+Description=Generate private three-strategy access records
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+SupplementaryGroups=adm
+WorkingDirectory=/opt/sequoia-x
+Environment=TZ=Asia/Shanghai
+ExecStart=/opt/sequoia-x/.venv/bin/python /opt/sequoia-x/access_dashboard.py
+TimeoutStartSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/sequoia-x/visits
